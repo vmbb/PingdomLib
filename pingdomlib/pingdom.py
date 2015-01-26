@@ -23,10 +23,11 @@ class Pingdom(object):
     """
 
     def __init__(self, username, password, apikey, accountemail=None,
-                 pushchanges=True, server=server_address):
+                 pushchanges=True, server=server_address, authhash=None):
         self.pushChanges = pushchanges
         self.username = username
         self.password = password
+        self.authhash = authhash
         self.apikey = apikey
         self.accountemail = accountemail
         self.url = '%s/api/%s/' % (server, api_version)
@@ -37,28 +38,28 @@ class Pingdom(object):
         """Requests wrapper function"""
 
         headers = {'App-Key': self.apikey}
+
+        kwArgs = dict(headers = headers)
+
+        if self.authhash:
+            headers.update({ "Authorization": "Basic {0}".format(self.authhash) })
+        else:
+            headers.update({ auth:(self.username, self.password)})
+
         if self.accountemail:
             headers.update({'Account-Email': self.accountemail})
 
         # Method selection handling
-        if method.upper() == 'GET':
-            response = requests.get(self.url + url, params=parameters,
-                                    auth=(self.username, self.password),
-                                    headers=headers)
-        elif method.upper() == 'POST':
-            response = requests.post(self.url + url, data=parameters,
-                                     auth=(self.username, self.password),
-                                     headers=headers)
-        elif method.upper() == 'PUT':
-            response = requests.put(self.url + url, data=parameters,
-                                    auth=(self.username, self.password),
-                                    headers=headers)
-        elif method.upper() == 'DELETE':
-            response = requests.delete(self.url + url, params=parameters,
-                                       auth=(self.username, self.password),
-                                       headers=headers)
+        if method.upper() in ['GET', 'DELETE']:
+            kwArgs.update({"params": parameters})
+
+        elif method.upper() in ['PUT', 'DELETE']:
+            kwArgs.update({"data": parameters})
+
         else:
             raise Exception("Invalid method in pingdom request")
+
+        response = requests.get(self.url + url, **kwArgs)
 
         # Store pingdom api limits
         self.shortlimit = response.headers.get(

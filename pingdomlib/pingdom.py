@@ -23,11 +23,10 @@ class Pingdom(object):
     """
 
     def __init__(self, username, password, apikey, accountemail=None,
-                 pushchanges=True, server=server_address, authhash=None):
+                 pushchanges=True, server=server_address):
         self.pushChanges = pushchanges
         self.username = username
         self.password = password
-        self.authhash = authhash
         self.apikey = apikey
         self.accountemail = accountemail
         self.url = '%s/api/%s/' % (server, api_version)
@@ -36,15 +35,12 @@ class Pingdom(object):
 
     def request(self, method, url, parameters=dict()):
         """Requests wrapper function"""
-
+        print("request parameters", parameters)
         headers = {'App-Key': self.apikey}
 
-        kwArgs = dict(headers = headers)
+        kwArgs = dict()
 
-        if self.authhash:
-            headers.update({ "Authorization": "Basic {0}".format(self.authhash) })
-        else:
-            headers.update({ auth:(self.username, self.password)})
+        kwArgs.update({ "auth": (self.username, self.password)})
 
         if self.accountemail:
             headers.update({'Account-Email': self.accountemail})
@@ -53,13 +49,23 @@ class Pingdom(object):
         if method.upper() in ['GET', 'DELETE']:
             kwArgs.update({"params": parameters})
 
-        elif method.upper() in ['PUT', 'DELETE']:
+        elif method.upper() in ['PUT', 'POST']:
             kwArgs.update({"data": parameters})
 
         else:
             raise Exception("Invalid method in pingdom request")
+        s = requests.Session()
+        kwArgs.update({"headers": headers})
 
-        response = requests.get(self.url + url, **kwArgs)
+        action_method = getattr(requests, method.lower(), None)
+        if action_method:
+            response = action_method(self.url + url, **kwArgs)
+            import json
+            #print(json.dumps(kwArgs, indent=4, sort_keys=True))
+            print(kwArgs)
+        else:
+            raise Exception("Invalid method in pingdom request")
+
 
         # Store pingdom api limits
         self.shortlimit = response.headers.get(
@@ -546,10 +552,11 @@ class Pingdom(object):
             raise Exception("Invalid checktype in newCheck()")
 
         parameters = {'name': name, 'host': host, 'type': checktype}
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             parameters[key] = value
 
         checkinfo = self.request("POST", 'checks', parameters)
+
         return self.getCheck(checkinfo.json()['check']['id'])
 
     def modifyChecks(self, **kwargs):
@@ -952,7 +959,7 @@ class Pingdom(object):
             raise Exception("Invalid checktype in singleTest()")
 
         parameters = {'host': host, 'type': checktype}
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             parameters[key] = value
 
         checkinfo = self.request('GET', "single", parameters)
@@ -1179,7 +1186,7 @@ class Pingdom(object):
                                  'of newEmailReport()\n')
 
         parameters = {'name': name}
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             parameters[key] = value
 
         return self.request('POST', 'reports.email',
@@ -1251,7 +1258,7 @@ class Pingdom(object):
                                  'of newSharedReport()\n')
 
         parameters = {'checkid': checkid, 'sharedtype': 'banner'}
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             parameters[key] = value
 
         return self.request('POST', 'reports.shared',
